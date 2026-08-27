@@ -1,75 +1,72 @@
 const products = [
+  // --- MEN'S COLLECTION (30 Unique Items) ---
+  { id: 201, category: "Men", name: "Classic Navy Blazer", price: 2499, countInStock: 12, image: "https://cdn.shopify.com/s/files/1/0639/1237/8602/files/Blue_Blazer_with_Blue_Shirt_480x480.jpg?v=1722424499" },
+  { id: 202, category: "Men", name: "White Oxford Shirt", price: 1299, countInStock: 3, image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500" },
+  { id: 203, category: "Men", name: "Black Slim Fit Jeans", price: 1799, countInStock: 0, image: "https://img.drz.lazcdn.com/static/pk/p/f74804ddb8d8428df4a62f68131dcfa9.jpg_720x720q80.jpg" },
+  { id: 204, category: "Men", name: "Grey Marl Hoodie", price: 1499, countInStock: 5, image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500" },
+  { id: 205, category: "Men", name: "Tan Leather Jacket", price: 4999, countInStock: 2, image: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500" },
+  { id: 206, category: "Men", name: "Navy Polo T-Shirt", price: 899, countInStock: 8, image: "https://static.cilory.com/815741-thickbox_default/mens-navy-contrast-tipping-collared-polo-t-shirt.jpg.webp" },
+  { id: 207, category: "Men", name: "Olive Cargo Pants", price: 1599, countInStock: 15, image: "https://images.unsplash.com/photo-1473966968600-fa801b869a1a?w=500" },
+  { id: 208, category: "Men", name: "Woolen Crew Neck Sweater", price: 1999, countInStock: 4, image: "https://images.unsplash.com/photo-1614975058789-41316d0e2e9c?w=500" },
+  { id: 209, category: "Men", name: "Denim Trucker Jacket", price: 2199, countInStock: 10, image: "https://images.unsplash.com/photo-1495105787522-5334e3ffa0ef?w=500" },
+  { id: 210, category: "Men", name: "Striped Summer Shirt", price: 999, countInStock: 0, image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=500" },
+  { id: 211, category: "Men", name: "Black Formal Trousers", price: 1799, countInStock: 14, image: "https://5.imimg.com/data5/UN/UB/MY-61376355/mens-formal-pant-500x500.jpg" },
+  { id: 212, category: "Men", name: "Red Flannel Shirt", price: 1199, countInStock: 1, image: "https://powerlook.in/cdn/shop/files/7_0ad5027a-2ee2-40bf-910a-7aba1edca3e0.jpg?v=1768889755" },
+  { id: 213, category: "Men", name: "Khaki Chino Shorts", price: 799, countInStock: 9, image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQYRGsR09KgpnXapxVADgd9R74YHrAHkBLYxQ&s" },
+  { id: 214, category: "Men", name: "Burgundy Bomber Jacket", price: 2499, countInStock: 6, image: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=500" },
+  { id: 215, category: "Men", name: "Graphic White Tee", price: 699, countInStock: 20, image: "https://images.unsplash.com/photo-1622445275463-afa2ab738c34?w=500" },
+  { id: 216, category: "Men", name: "Tweed Winter Coat", price: 4499, countInStock: 3, image: "https://m.media-amazon.com/images/I/61Dqn4RnkAL._AC_UY1100_.jpg" },
+  { id: 217, category: "Men", name: "Navy V-Neck Pullover", price: 1399, countInStock: 7, image: "https://images.unsplash.com/photo-1578932750294-f5075e85f44a?w=500" },
+  { id: 218, category: "Men", name: "Checked Office Shirt", price: 1099, countInStock: 11, image: "https://www.mystore.in/s/62ea2c599d1398fa16dbae0a/667bf865e57042002b213df0/39110_1__all_set261_men_formal_front__2023-6-8-15-16-46__2730x4096_-_copy-removebg-preview.png" },
+  { id: 219, category: "Men", name: "Beige Trench Coat", price: 3999, countInStock: 2, image: "https://images-static.nykaa.com/media/catalog/product/a/3/a304a46HNMN-M11BEIGE_1.jpg?tr=w-500" },
+  { id: 220, category: "Men", name: "Sports Track Pants", price: 999, countInStock: 18, image: "https://images.unsplash.com/photo-1580906853203-f493cea9ff28?w=500" },
+  { id: 221, category: "Men", name: "Floral Beach Shirt", price: 799, countInStock: 5, image: "https://mysteryoffashion.com/cdn/shop/files/4H9A4412.jpg?v=1717485681&width=1946" },
+  { id: 222, category: "Men", name: "Knitted Cardigan", price: 1899, countInStock: 8, image: "https://images.unsplash.com/photo-1555689502-c4b22d76c56f?w=500" },
+  { id: 223, category: "Men", name: "Windbreaker Jacket", price: 1999, countInStock: 10, image: "https://images.unsplash.com/photo-1548883354-94bcfe321cbb?w=500" },
+  { id: 224, category: "Men", name: "Mandarin Collar Kurta", price: 1299, countInStock: 15, image: "https://www.inddus.in/cdn/shop/products/men-mandarin-collar-kurta-230508.jpg?v=1752666979" },
+  { id: 225, category: "Men", name: "Slim Fit Corduroy", price: 2199, countInStock: 4, image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTaHODsdKnu8L3pE6uHfLUOoHSo3khLnDFEkQ&s" },
+  { id: 226, category: "Men", name: "Suede Chelsea Boots", price: 3499, countInStock: 6, image: "https://teakwoodleathers.com/cdn/shop/files/T_SH_SO_05_BR_1080x.jpg?v=1750932872" },
+  { id: 227, category: "Men", name: "Red Leather jacket", price: 2799, countInStock: 0, image: "https://assets.ajio.com/medias/sys_master/root/20221104/eVOm/63652373f997ddfdbd58cd85/-473Wx593H-469291591-bordeaux-MODEL.jpg" },
+  { id: 228, category: "Men", name: "Classic blue jean", price: 999, countInStock: 12, image: "https://redtape.com/cdn/shop/files/RDM1189M_1.jpg?v=1763710953" },
+  { id: 229, category: "Men", name: "Woolen Scarf", price: 499, countInStock: 25, image: "https://cpimg.tistatic.com/10811611/b/6/Geometric-Pattern-Winter-Scarf-with-Tassels-Beige-Knitted-Wool-Blend.jpeg" },
+  { id: 230, category: "Men", name: "Chronograph Watch", price: 5499, countInStock: 3, image: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=500" },
+  { id: 231, category: "Men", name: "Charcoal Wool Overcoat", price: 5299, countInStock: 7, image: "https://images.unsplash.com/photo-1600180758890-6e8f8b9f5b7c?w=500" },
+  { id: 232, category: "Men", name: "Olive Field Jacket", price: 2799, countInStock: 9, image: "https://images.unsplash.com/photo-1557264305-5d13c6b0df57?w=500" },
+  { id: 233, category: "Men", name: "Burgundy Knit Sweater", price: 1999, countInStock: 14, image: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=500" },
+  { id: 234, category: "Men", name: "Tan Suede Loafers", price: 3499, countInStock: 4, image: "https://images.unsplash.com/photo-1578898882293-2bc3d5bca8e0?w=500" },
+  { id: 235, category: "Men", name: "Slim Fit Chinos", price: 1199, countInStock: 16, image: "https://images.unsplash.com/photo-1578444246999-c8bf8f4f5de7?w=500" },
 
-{
-id:1,
-name:"Men Blazer",
-price:1499,
-image:"/photos/menparty.webp"
-},
-
-{
-id:2,
-name:"Women Black Bodycone Dress",
-price:2199,
-image:"/photos/dress.jpg"
-},
-
-{
-id:3,
-name:"Men Stylish Kurta",
-price:899,
-image:"/photos/menstylishkurta.webp"
-},
-
-{
-id:4,
-name:"Woman Formal Blazer",
-price:3499,
-image:"/photos/womanformal.webp"
-},
-
-{
-id:5,
-name:"Women Kurta Set",
-price:1799,
-image:"/photos/floral kurti.avif"
-},
-
-{
-id:6,
-name:"Men Party Suit",
-price:1299,
-image:"/photos/mensuit.webp"
-},
-
-{
-id:7,
-name:"Stylish Blazer",
-price:899,
-image:"/photos/blazerwoman.avif"
-},
-
-{
-id:8,
-name:"Men Jeans",
-price:3499,
-image:"/photos/menjeans.jpg"
-},
-
-{
-id:9,
-name:"Women Shirt",
-price:1799,
-image:"/photos/womancasual.avif"
-},
-
-{
-id:10,
-name:"Stylish Top",
-price:1299,
-image:"/photos/womantop.jpg"
-}
-
+  // --- WOMEN'S COLLECTION (30 Unique Items) ---
+  { id: 101, category: "Women", name: "Floral Wrap Dress", price: 2199, countInStock: 4, image: "https://assets0.mirraw.com/images/7704648/SFDRSS1756-1_zoom.jpg?1578122831" },
+  { id: 102, category: "Women", name: "High-Rise Mom Jeans", price: 1899, countInStock: 0, image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=500" },
+  { id: 103, category: "Women", name: "Silk Satin Blouse", price: 1599, countInStock: 15, image: "https://images-cdn.ubuy.co.in/669188326d8cc2128d580d49-evaless-womens-tops-silk-satin-blouses.jpg" },
+  { id: 104, category: "Women", name: "Pleated Midi Skirt", price: 1299, countInStock: 3, image: "https://images.unsplash.com/photo-1577900232427-18219b9166a0?w=500" },
+  { id: 105, category: "Women", name: "Pastel Pink Hoodie", price: 1399, countInStock: 8, image: "https://redtape.com/cdn/shop/files/RLH0066_1.jpg?v=1768803175" },
+  { id: 106, category: "Women", name: "Black Evening Gown", price: 5999, countInStock: 2, image: "https://images.unsplash.com/photo-1518831959646-742c3a14ebf7?w=500" },
+  { id: 107, category: "Women", name: "Boho Maxi Skirt", price: 1799, countInStock: 11, image: "https://images.meesho.com/images/products/812172796/japsw_512.webp?width=512" },
+  { id: 108, category: "Women", name: "Lace Party Top", price: 1099, countInStock: 6, image: "https://images.unsplash.com/photo-1562572159-4efc207f5aff?w=500" },
+  { id: 109, category: "Women", name: "Winter Long Coat", price: 4499, countInStock: 5, image: "https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=500" },
+  { id: 110, category: "Women", name: "Summer Jumpsuit", price: 1999, countInStock: 0, image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=500" },
+  { id: 111, category: "Women", name: "Denim Mini Skirt", price: 899, countInStock: 14, image: "https://images.unsplash.com/photo-1582142306909-195724d33ffc?w=500" },
+  { id: 112, category: "Women", name: "Cashmere Sweater", price: 2999, countInStock: 7, image: "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=500" },
+  { id: 113, category: "Women", name: "Crop Leather Jacket", price: 3499, countInStock: 1, image: "https://images.unsplash.com/photo-1521223890158-f9f7c3d5d504?w=500" },
+  { id: 114, category: "Women", name: "Wide Leg Trousers", price: 2199, countInStock: 9, image: "https://images.unsplash.com/photo-1758543144593-95061a3f418a?w=500" },
+  { id: 115, category: "Women", name: "Puff Sleeve Blouse", price: 999, countInStock: 12, image: "https://images.unsplash.com/photo-1564257631407-4deb1f99d992?w=500" },
+  { id: 116, category: "Women", name: "Velvet Cocktail Dress", price: 3799, countInStock: 3, image: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=500" },
+  { id: 117, category: "Women", name: "Gym Leggings", price: 1199, countInStock: 22, image: "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?w=500" },
+  { id: 118, category: "Women", name: "Quilted Tote Bag", price: 1599, countInStock: 10, image: "https://images.unsplash.com/photo-1544816155-12df9643f363?w=500" },
+  { id: 119, category: "Women", name: "Pointed Toe Heels", price: 2499, countInStock: 5, image: "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=500" },
+  { id: 120, category: "Women", name: "Gold Hoop Earrings", price: 499, countInStock: 30, image: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500" },
+  { id: 121, category: "Women", name: "Belted Trench Coat", price: 4199, countInStock: 2, image: "https://images.unsplash.com/photo-1548624313-0396c75e4b1a?w=500" },
+  { id: 122, category: "Women", name: "Striped Cotton Tee", price: 599, countInStock: 18, image: "https://images.unsplash.com/photo-1503342394128-c104d54dba01?w=500" },
+  { id: 123, category: "Women", name: "Suede Ankle Boots", price: 2899, countInStock: 6, image: "https://images.unsplash.com/photo-1608256246200-53e635b5b65f?w=500" },
+  { id: 124, category: "Women", name: "Straw Sun Hat", price: 799, countInStock: 15, image: "https://images.unsplash.com/photo-1514327605112-b887c0e61c0a?w=500" },
+  { id: 125, category: "Women", name: "Embroidered Kurti", price: 1899, countInStock: 8, image: "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=500" },
+  { id: 126, category: "Women", name: "Silk Neck Scarf", price: 399, countInStock: 0, image: "https://raven.contrado.app/resources/images/2026-2/251374/custom-scarves-for-women-a-unique-and-stylish1635773_l.jpeg?w=1400&h=1900&fit=crop&dpr=1" },
+  { id: 127, category: "Women", name: "Designer Crossbody", price: 3299, countInStock: 4, image: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=500" },
+  { id: 128, category: "Women", name: "Linen Wide Leg Pants", price: 1699, countInStock: 7, image: "https://images.unsplash.com/photo-1551854838-212c50b4c184?w=500" },
+  { id: 129, category: "Women", name: "Ruffled Wrap Skirt", price: 1199, countInStock: 11, image: "https://www.berrylush.com/cdn/shop/products/8_afc7f211-d431-41af-a4b0-8906a4cbb209.jpg?v=1750077437" },
+  { id: 130, category: "Women", name: "Diamond Studs", price: 9999, countInStock: 2, image: "https://images.unsplash.com/photo-1611085583191-a3b181a88401?w=500" }
 ];
 
 export default products;

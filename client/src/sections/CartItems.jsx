@@ -11,14 +11,14 @@ export default function CartItems() {
 
   if (cart.length === 0) {
     return (
-      <div className="flex-1 bg-white p-6 rounded shadow">
+      <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded shadow">
         Your cart is empty
       </div>
     );
   }
 
   return (
-    <div className="flex-1 bg-white p-6 rounded shadow">
+    <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded shadow">
       {cart.map((item, index) => (
         <div key={index} className="flex gap-4 border-b py-4">
 

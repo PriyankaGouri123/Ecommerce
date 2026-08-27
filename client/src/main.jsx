@@ -4,14 +4,20 @@ import { BrowserRouter } from "react-router-dom";
 
 import App from "./App.jsx";
 import "./index.css";
-import { StoreProvider } from "./context/StoreContext"; // ✅ ADD THIS
+import { StoreProvider } from "./context/StoreContext";
+import { AuthProvider } from "./context/AuthContext";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <StoreProvider> {/* ✅ WRAP HERE */}
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </StoreProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <StoreProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </StoreProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );

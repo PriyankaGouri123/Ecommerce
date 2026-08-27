@@ -5,7 +5,7 @@ export default function CartSummary() {
   const navigate = useNavigate();
 
   return (
-    <div className="w-80 bg-white p-6 rounded shadow">
+    <div className="w-80 bg-white dark:bg-gray-800 p-6 rounded shadow">
 
       <h3 className="text-xl font-bold mb-4">Summary</h3>
 
