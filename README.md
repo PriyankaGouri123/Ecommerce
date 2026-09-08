@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛍️ ShopVerse — Full-Stack E-Commerce Platform
+# 🛍️ MyStore — Full-Stack E-Commerce Platform
 
 A modern, full-featured e-commerce web application built with **React 19**, **Node.js**, **Express**, and **MongoDB**. Featuring a sleek dark-mode UI, complete admin dashboard, Razorpay payment integration, and real-time order tracking.
 
