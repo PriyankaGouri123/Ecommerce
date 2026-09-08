@@ -2,6 +2,9 @@ import { useState, useEffect, useContext } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+import { formatPaymentMethod } from "../../utils/payment";
+
 export default function Users() {
   const { token } = useContext(AuthContext);
   
@@ -28,7 +31,7 @@ export default function Users() {
     setLoading(true);
     setError(false);
     try {
-      const res = await fetch(`/api/admin/users?page=${page}&limit=8&search=${search}&status=${statusFilter}`, {
+      const res = await fetch(`${API_URL}/api/admin/users?page=${page}&limit=8&search=${search}&status=${statusFilter}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -64,7 +67,7 @@ export default function Users() {
   const fetchUserDetails = async (userId) => {
     setDetailsLoading(true);
     try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
+      const res = await fetch(`${API_URL}/api/admin/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -91,8 +94,8 @@ export default function Users() {
     setActionLoading(true);
     try {
       const endpoint = user.isBlocked 
-        ? `/api/admin/users/${user._id}/unblock` 
-        : `/api/admin/users/${user._id}/block`;
+        ? `${API_URL}/api/admin/users/${user._id}/unblock` 
+        : `${API_URL}/api/admin/users/${user._id}/block`;
         
       const res = await fetch(endpoint, {
         method: "PUT",
@@ -121,7 +124,7 @@ export default function Users() {
     if (!userToDelete) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/admin/users/${userToDelete._id}`, {
+      const res = await fetch(`${API_URL}/api/admin/users/${userToDelete._id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -417,7 +420,7 @@ export default function Users() {
                             <tr key={ord._id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                               <td className="px-4 py-3 font-mono font-medium text-blue-600 dark:text-blue-400">#{ord._id.slice(-6).toUpperCase()}</td>
                               <td className="px-4 py-3 text-gray-500">{new Date(ord.createdAt).toLocaleDateString()}</td>
-                              <td className="px-4 py-3 text-gray-500">{ord.paymentMethod}</td>
+                              <td className="px-4 py-3 text-gray-500">{formatPaymentMethod(ord.paymentMethod)}</td>
                               <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">₹{ord.totalAmount}</td>
                               <td className="px-4 py-3 text-center">
                                 <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full ${

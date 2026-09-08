@@ -1,6 +1,10 @@
 import { useState, useEffect, useContext } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import toast from "react-hot-toast";
+import { formatPaymentMethod } from "../../utils/payment";
+
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 
 export default function OrderList() {
   const [orders, setOrders] = useState([]);
@@ -13,7 +17,7 @@ export default function OrderList() {
 
   const fetchOrders = async () => {
     try {
-      const res = await fetch("/api/orders/all", {
+      const res = await fetch(`${API_URL}/api/orders/all`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -35,7 +39,7 @@ export default function OrderList() {
 
   const updateOrderStatus = async (id, status) => {
     try {
-      const res = await fetch(`/api/orders/${id}/status`, {
+      const res = await fetch(`${API_URL}/api/orders/${id}/status`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -93,7 +97,7 @@ export default function OrderList() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <div className="font-semibold text-gray-900 dark:text-white">
-                      {order.paymentMethod || "COD"}
+                      {formatPaymentMethod(order.paymentMethod)}
                       <span className={`ml-2 px-2 inline-flex text-[10px] leading-4 font-bold rounded-full ${
                         order.paymentStatus === "Paid"
                           ? "bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-300"

@@ -3,6 +3,8 @@ import { AuthContext } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 import ProductModal from "../../components/admin/ProductModal";
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 export default function ProductList() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,7 +18,7 @@ export default function ProductList() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch("/api/products");
+      const res = await fetch(`${API_URL}/api/products`);
       const data = await res.json();
       setProducts(data);
     } catch (error) {
@@ -29,7 +31,7 @@ export default function ProductList() {
   const deleteProduct = async (id) => {
     if (window.confirm("Are you sure you want to delete this product?")) {
       try {
-        const res = await fetch(`/api/products/${id}`, {
+        const res = await fetch(`${API_URL}/api/products/${id}`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -49,7 +51,7 @@ export default function ProductList() {
 
   const handleSaveProduct = async (productData) => {
     try {
-      const url = currentProduct ? `/api/products/${currentProduct._id}` : "/api/products";
+      const url = currentProduct ? `${API_URL}/api/products/${currentProduct._id}` : `${API_URL}/api/products`;
       const method = currentProduct ? "PUT" : "POST";
       
       const res = await fetch(url, {

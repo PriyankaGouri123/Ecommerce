@@ -4,6 +4,7 @@ import Cart from "../models/Cart.js";
 import Product from "../models/Product.js";
 import Coupon from "../models/Coupon.js";
 import User from "../models/User.js";
+import { findProductByIdOrCode, decrementProductStock } from "./paymentController.js";
 import { sendOtpEmail, sendPasswordChangedEmail, sendOrderPlacedEmail, sendOrderCancelledEmail, sendOrderStatusEmail, sendOrderShippedEmail, sendOrderDeliveredEmail } from "../config/emailService.js";
 // @desc    Get all orders (Admin only)
 // @route   GET /api/orders/all
@@ -42,16 +43,12 @@ export const createOrder = async (req, res) => {
       }
     ];
 
-    // Validate and check product stock availability
-    for (const item of orderItems) {
-      const productId = item.product || item.id;
-      const productDoc = await Product.findOne({
-        $or: [
-          { _id: typeof productId === "string" && productId.length === 24 ? productId : null },
-          { id: typeof productId === "number" ? productId : (isNaN(Number(productId)) ? null : Number(productId)) }
-        ].filter(Boolean)
-      });
+    // Validate and check product stock availability with database prices
+    const recalculatedOrderItems = [];
+    let subtotal = 0;
 
+    for (const item of orderItems) {
+      const productDoc = await findProductByIdOrCode(item.product || item.id);
       if (!productDoc) {
         return res.status(404).json({ message: `Product "${item.name}" not found.` });
       }
@@ -61,10 +58,21 @@ export const createOrder = async (req, res) => {
           message: `Cannot place order. Requested quantity (${item.quantity}) for "${item.name}" exceeds available stock (${productDoc.countInStock}).`
         });
       }
+
+      const actualPrice = productDoc.price;
+      subtotal += actualPrice * item.quantity;
+
+      recalculatedOrderItems.push({
+        product: productDoc._id,
+        id: String(productDoc.id),
+        name: productDoc.name,
+        quantity: item.quantity,
+        image: productDoc.image || item.image,
+        price: actualPrice
+      });
     }
 
-    // Calculate subtotal & delivery charges server-side
-    const subtotal = orderItems.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
+    // Calculate delivery charges server-side
     const delivery = subtotal > 999 ? 0 : 99;
 
     let discountAmount = 0;
@@ -104,17 +112,8 @@ export const createOrder = async (req, res) => {
     const finalTotal = Math.max(0, subtotal - discountAmount + delivery);
 
     // Deduct product stock
-    for (const item of orderItems) {
-      const productId = item.product || item.id;
-      await Product.updateOne(
-        {
-          $or: [
-            { _id: typeof productId === "string" && productId.length === 24 ? productId : null },
-            { id: typeof productId === "number" ? productId : (isNaN(Number(productId)) ? null : Number(productId)) }
-          ].filter(Boolean)
-        },
-        { $inc: { countInStock: -item.quantity } }
-      );
+    for (const item of recalculatedOrderItems) {
+      await decrementProductStock(item.product || item.id, item.quantity);
     }
 
     // Atomically increment coupon usedCount if coupon applied
@@ -124,7 +123,7 @@ export const createOrder = async (req, res) => {
 
     const order = new Order({
       user: req.user._id,
-      orderItems,
+      orderItems: recalculatedOrderItems,
       shippingAddress,
       paymentMethod: "COD", // Force COD for this route, online payments go through /api/payments
       paymentStatus: "COD",
@@ -261,16 +260,7 @@ export const cancelOrder = async (req, res) => {
 
     // Restore inventory stock
     for (const item of order.orderItems) {
-      const productId = item.product || item.id;
-      await Product.updateOne(
-        {
-          $or: [
-            { _id: typeof productId === "string" && productId.length === 24 ? productId : null },
-            { id: typeof productId === "number" ? productId : (isNaN(Number(productId)) ? null : Number(productId)) }
-          ].filter(Boolean)
-        },
-        { $inc: { countInStock: item.quantity } }
-      );
+      await decrementProductStock(item.product || item.id, -item.quantity);
     }
 
     // Update order status

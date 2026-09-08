@@ -9,27 +9,33 @@ export default function AuthModal() {
     loginWithPassword,
     sendOtp,
     verifyOtp,
+    resetPassword,
     register,
   } = useContext(AuthContext);
 
-  const [mode, setMode] = useState(authModalMode || "login"); // 'login' | 'signup' | 'otp'
+  const [mode, setMode] = useState(authModalMode || "login"); // 'login' | 'signup' | 'forgot'
   const [identifier, setIdentifier] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [useOtp, setUseOtp] = useState(true); // Default to OTP like Flipkart
+  const [newPassword, setNewPassword] = useState("");
+  const [useOtp, setUseOtp] = useState(true);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState(["", "", "", "", "", ""]);
   const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Forgot password sub-steps: 'request' | 'verify'
+  const [forgotStep, setForgotStep] = useState("request");
 
   useEffect(() => {
     setMode(authModalMode || "login");
     setOtpSent(false);
     setIdentifier("");
     setPassword("");
+    setNewPassword("");
     setName("");
     setOtpCode(["", "", "", "", "", ""]);
+    setForgotStep("request");
   }, [authModalMode, isAuthModalOpen]);
 
   // Timer countdown for OTP
@@ -234,13 +240,29 @@ export default function AuthModal() {
                   >
                     {useOtp ? "Use Password" : "Request OTP instead"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("signup")}
-                    className="text-gray-600 dark:text-gray-300 hover:text-blue-600 font-semibold"
-                  >
-                    New to MyStore? <span className="text-blue-600 font-bold">Create account</span>
-                  </button>
+                  <div className="flex flex-col items-end gap-1">
+                    {!useOtp && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode("forgot");
+                          setForgotStep("request");
+                          setOtpCode(["", "", "", "", "", ""]);
+                          setNewPassword("");
+                        }}
+                        className="text-xs text-orange-500 hover:text-orange-600 font-semibold hover:underline"
+                      >
+                        Forgot Password?
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setMode("signup")}
+                      className="text-gray-600 dark:text-gray-300 hover:text-blue-600 font-semibold"
+                    >
+                      New to MyStore? <span className="text-blue-600 font-bold">Create account</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </form>
@@ -387,6 +409,158 @@ export default function AuthModal() {
                 </div>
               </div>
             </form>
+          )}
+
+          {/* FORGOT PASSWORD FLOW */}
+          {mode === "forgot" && (
+            <div className="space-y-6 flex-grow flex flex-col justify-between">
+
+              {/* Step 1 — Request OTP */}
+              {forgotStep === "request" && (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!identifier.trim()) return;
+                    setSubmitting(true);
+                    const res = await sendOtp(identifier.trim());
+                    if (res.success) {
+                      setForgotStep("verify");
+                      setOtpCode(["", "", "", "", "", ""]);
+                    }
+                    setSubmitting(false);
+                  }}
+                  className="space-y-5 flex-grow flex flex-col justify-between"
+                >
+                  <div className="space-y-4">
+                    <div className="p-3 bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 rounded-lg text-xs text-orange-800 dark:text-orange-300">
+                      🔑 Enter your registered email. We'll send a 6-digit OTP to reset your password.
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
+                        Registered Email Address
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        placeholder="e.g. user@example.com"
+                        className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-3 pt-4">
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="w-full py-3.5 px-4 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg shadow-md transition active:scale-95 disabled:opacity-50"
+                    >
+                      {submitting ? "Sending OTP..." : "SEND RESET OTP"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMode("login")}
+                      className="w-full text-center text-sm text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+                    >
+                      ← Back to Login
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Step 2 — Enter OTP + New Password */}
+              {forgotStep === "verify" && (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const fullOtp = otpCode.join("");
+                    if (fullOtp.length < 6 || !newPassword) return;
+                    setSubmitting(true);
+                    const res = await resetPassword(identifier.trim(), fullOtp, newPassword);
+                    if (res.success) {
+                      setMode("login");
+                      setUseOtp(false);
+                      setForgotStep("request");
+                      setOtpCode(["", "", "", "", "", ""]);
+                      setPassword("");
+                      setNewPassword("");
+                    }
+                    setSubmitting(false);
+                  }}
+                  className="space-y-5 flex-grow flex flex-col justify-between"
+                >
+                  <div className="space-y-4">
+                    <div className="p-3 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg text-xs text-green-800 dark:text-green-300">
+                      📧 OTP sent to <strong>{identifier}</strong>. Enter it below along with your new password.
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-3">
+                        Enter 6-Digit OTP
+                      </label>
+                      <div className="flex justify-between gap-2">
+                        {otpCode.map((digit, index) => (
+                          <input
+                            key={index}
+                            id={`forgot-otp-${index}`}
+                            type="text"
+                            maxLength="1"
+                            value={digit}
+                            onChange={(e) => {
+                              if (!/^\d*$/.test(e.target.value)) return;
+                              const next = [...otpCode];
+                              next[index] = e.target.value;
+                              setOtpCode(next);
+                              if (e.target.value && index < 5) {
+                                document.getElementById(`forgot-otp-${index + 1}`)?.focus();
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Backspace" && !otpCode[index] && index > 0) {
+                                document.getElementById(`forgot-otp-${index - 1}`)?.focus();
+                              }
+                            }}
+                            className="w-10 h-10 text-center text-lg font-bold rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition"
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
+                        New Password
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="At least 6 characters"
+                        className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <button
+                      type="submit"
+                      disabled={submitting || otpCode.join("").length < 6 || !newPassword}
+                      className="w-full py-3.5 px-4 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg shadow-md transition active:scale-95 disabled:opacity-50"
+                    >
+                      {submitting ? "Resetting..." : "RESET PASSWORD"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForgotStep("request")}
+                      className="w-full text-center text-sm text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+                    >
+                      ← Change email / Resend OTP
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           )}
 
         </div>

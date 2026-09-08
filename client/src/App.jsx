@@ -25,6 +25,8 @@ import Profile from "./pages/Profile";
 import Orders from "./pages/Orders";
 import Tracking from "./pages/Tracking";
 import About from "./pages/About";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentFailed from "./pages/PaymentFailed";
 
 function App() {
   return (
@@ -49,6 +51,8 @@ function App() {
           <Route path="/product/:id" element={<ProductDetails />} />
           <Route path="/search" element={<Home />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/payment/success/:orderId" element={<PaymentSuccess />} />
+          <Route path="/payment/failed/:orderId" element={<PaymentFailed />} />
           <Route path="*" element={<h1 className="text-center py-20 text-2xl font-bold">Page Not Found</h1>} />
         </Route>
 

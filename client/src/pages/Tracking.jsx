@@ -2,6 +2,8 @@ import { useContext, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 export default function Tracking() {
   const { orderId } = useParams();
   const { user, token, openAuthModal } = useContext(AuthContext);
@@ -22,7 +24,7 @@ export default function Tracking() {
         setLoading(true);
         setError(null);
 
-        const res = await fetch(`/api/orders/${orderId}`, {
+        const res = await fetch(`${API_URL}/api/orders/${orderId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

@@ -7,6 +7,8 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, Legend
 } from 'recharts';
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30,15 +32,15 @@ export default function Dashboard() {
       const headers = { Authorization: `Bearer ${token}` };
       
       const [statsRes, revRes, ordRes, usersRes, catRes, payRes, topProdRes, recentOrdRes, invAlertsRes] = await Promise.all([
-        fetch("/api/admin/stats", { headers }),
-        fetch(`/api/admin/charts/revenue?days=${dateRange}`, { headers }),
-        fetch(`/api/admin/charts/orders?days=${dateRange}`, { headers }),
-        fetch(`/api/admin/charts/users?days=${dateRange}`, { headers }),
-        fetch("/api/admin/charts/categories", { headers }),
-        fetch("/api/admin/charts/payments", { headers }),
-        fetch("/api/admin/top-products", { headers }),
-        fetch("/api/admin/recent-orders", { headers }),
-        fetch("/api/admin/inventory-alerts", { headers })
+        fetch(`${API_URL}/api/admin/stats`, { headers }),
+        fetch(`${API_URL}/api/admin/charts/revenue?days=${dateRange}`, { headers }),
+        fetch(`${API_URL}/api/admin/charts/orders?days=${dateRange}`, { headers }),
+        fetch(`${API_URL}/api/admin/charts/users?days=${dateRange}`, { headers }),
+        fetch(`${API_URL}/api/admin/charts/categories`, { headers }),
+        fetch(`${API_URL}/api/admin/charts/payments`, { headers }),
+        fetch(`${API_URL}/api/admin/top-products`, { headers }),
+        fetch(`${API_URL}/api/admin/recent-orders`, { headers }),
+        fetch(`${API_URL}/api/admin/inventory-alerts`, { headers })
       ]);
 
       const responses = [statsRes, revRes, ordRes, usersRes, catRes, payRes, topProdRes, recentOrdRes, invAlertsRes];

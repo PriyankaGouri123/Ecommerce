@@ -4,6 +4,8 @@ import { AuthContext } from "./AuthContext";
 
 export const StoreContext = createContext();
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 export const StoreProvider = ({ children }) => {
   const { user, token, openAuthModal, loading: authLoading } = useContext(AuthContext);
 
@@ -34,7 +36,7 @@ export const StoreProvider = ({ children }) => {
       }
 
       try {
-        const res = await fetch("/api/wishlist", {
+        const res = await fetch(`${API_URL}/api/wishlist`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -167,7 +169,7 @@ export const StoreProvider = ({ children }) => {
 
         if (token) {
           try {
-            const res = await fetch(`/api/wishlist/${targetId}`, {
+            const res = await fetch(`${API_URL}/api/wishlist/${targetId}`, {
               method: "DELETE",
               headers: { Authorization: `Bearer ${token}` },
             });
@@ -202,7 +204,7 @@ export const StoreProvider = ({ children }) => {
 
         if (token) {
           try {
-            const res = await fetch(`/api/wishlist/${targetId}`, {
+            const res = await fetch(`${API_URL}/api/wishlist/${targetId}`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",

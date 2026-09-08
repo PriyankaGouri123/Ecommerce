@@ -328,3 +328,59 @@ export const updateUserProfile = async (req, res) => {
     res.status(500).json({ message: "Server error.", error: error.message, stack: error.stack });
   }
 };
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @desc    Verify OTP then set a new password (Forgot Password flow)
+// @route   POST /api/auth/reset-password
+// ─────────────────────────────────────────────────────────────────────────────
+export const resetPassword = async (req, res) => {
+  try {
+    const { identifier, otp, newPassword } = req.body;
+
+    if (!identifier || !otp || !newPassword) {
+      return res.status(400).json({ message: "Email, OTP, and new password are required." });
+    }
+
+    if (!/^\d{6}$/.test(otp)) {
+      return res.status(400).json({ message: "OTP must be a 6-digit number." });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
+    }
+
+    const isEmail = isValidEmail(identifier);
+    if (!isEmail) {
+      return res.status(400).json({ message: "Password reset requires a valid email address." });
+    }
+
+    const user = await User.findOne({ email: identifier.toLowerCase() });
+    if (!user) {
+      return res.status(404).json({ message: "No account found with this email." });
+    }
+
+    if (user.isBlocked) {
+      return res.status(403).json({ message: "Your account has been blocked by the administrator." });
+    }
+
+    if (!user.otp || user.otp !== otp) {
+      return res.status(400).json({ message: "Invalid OTP. Please request a new one." });
+    }
+
+    if (user.otpExpires && new Date() > user.otpExpires) {
+      return res.status(400).json({ message: "OTP has expired. Please request a new one." });
+    }
+
+    // Set new password — pre-save hook will bcrypt-hash it automatically
+    user.password = newPassword;
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    res.json({ message: "Password reset successfully. You can now log in with your new password." });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ message: "Server error. Please try again." });
+  }
+};

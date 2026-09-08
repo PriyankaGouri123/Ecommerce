@@ -25,6 +25,8 @@ import connectDB from "./config/db.js";
 
 // ✅ Debug (VERY IMPORTANT for your case)
 console.log("MONGO_URI:", process.env.MONGO_URI ? "Loaded ✅" : "Missing ❌");
+console.log("RAZORPAY_KEY_ID:", process.env.RAZORPAY_KEY_ID ? "Loaded ✅" : "Missing ❌");
+console.log("RAZORPAY_KEY_SECRET:", process.env.RAZORPAY_KEY_SECRET ? "Loaded ✅" : "Missing ❌");
 
 const app = express();
 
@@ -51,6 +53,17 @@ app.use(cors({
 app.use(express.json({
   limit: '15mb',
   strict: true,
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+
+app.use(express.urlencoded({
+  extended: true,
+  limit: '15mb',
+  verify: (req, res, buf) => {
+    if (!req.rawBody) req.rawBody = buf;
+  }
 }));
 // JSON parse error handling
 app.use((err, req, res, next) => {

@@ -2,6 +2,8 @@ import { useState, useEffect, useContext } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 export default function Inventory() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,7 +17,7 @@ export default function Inventory() {
 
   const fetchInventory = async () => {
     try {
-      const res = await fetch("/api/products");
+      const res = await fetch(`${API_URL}/api/products`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setProducts(data);
@@ -42,7 +44,7 @@ export default function Inventory() {
     }
     setUpdating((prev) => ({ ...prev, [id]: true }));
     try {
-      const res = await fetch(`/api/products/${id}`, {
+      const res = await fetch(`${API_URL}/api/products/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

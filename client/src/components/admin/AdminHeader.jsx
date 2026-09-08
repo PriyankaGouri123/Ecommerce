@@ -2,6 +2,8 @@ import { useContext, useState, useEffect, useRef } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 export default function AdminHeader() {
   const { user, token, logout } = useContext(AuthContext);
   const [pendingOrders, setPendingOrders] = useState(0);
@@ -12,7 +14,7 @@ export default function AdminHeader() {
   useEffect(() => {
     const fetchPendingOrders = async () => {
       try {
-        const res = await fetch("/api/admin/stats", {
+        const res = await fetch(`${API_URL}/api/admin/stats`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();

@@ -2,6 +2,8 @@ import { useState, useEffect, useContext } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 export default function Reviews() {
   const { token } = useContext(AuthContext);
 
@@ -30,7 +32,7 @@ export default function Reviews() {
     setError(false);
     try {
       const ratingQuery = ratingFilter !== "all" ? `&rating=${ratingFilter}` : "";
-      const res = await fetch(`/api/admin/reviews?page=${page}&limit=8&search=${search}${ratingQuery}`, {
+      const res = await fetch(`${API_URL}/api/admin/reviews?page=${page}&limit=8&search=${search}${ratingQuery}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -70,7 +72,7 @@ export default function Reviews() {
   const handleToggleHide = async (review) => {
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/admin/reviews/${review._id}/toggle-hide`, {
+      const res = await fetch(`${API_URL}/api/admin/reviews/${review._id}/toggle-hide`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -93,7 +95,7 @@ export default function Reviews() {
     if (!reviewToDelete) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/admin/reviews/${reviewToDelete._id}`, {
+      const res = await fetch(`${API_URL}/api/admin/reviews/${reviewToDelete._id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });

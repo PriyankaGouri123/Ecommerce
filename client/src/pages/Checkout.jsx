@@ -3,16 +3,9 @@ import { StoreContext } from "../context/StoreContext";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { payWithRazorpay, validateIndianPhone } from "../utils/payment";
 
-const loadRazorpayScript = () => {
-  return new Promise((resolve) => {
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-};
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
 
 export default function Checkout() {
   const { cart, clearCart } = useContext(StoreContext);
@@ -27,7 +20,7 @@ export default function Checkout() {
     pincode: "",
   });
 
-  const [paymentMethod, setPaymentMethod] = useState("cod");
+  const [paymentMethod, setPaymentMethod] = useState(null); // set by button click
   const [submitting, setSubmitting] = useState(false);
 
   // Coupon state
@@ -56,7 +49,7 @@ export default function Checkout() {
   useEffect(() => {
     const fetchCoupons = async () => {
       try {
-        const res = await fetch("/api/coupons");
+        const res = await fetch(`${API_URL}/api/coupons`);
         if (res.ok) {
           const data = await res.json();
           setAvailableCoupons(data);
@@ -103,7 +96,7 @@ export default function Checkout() {
 
     setValidatingCoupon(true);
     try {
-      const res = await fetch("/api/coupons/validate", {
+      const res = await fetch(`${API_URL}/api/coupons/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: targetCode, subtotal }),
@@ -135,7 +128,8 @@ export default function Checkout() {
     toast("Coupon code removed", { icon: "ℹ️" });
   };
 
-  const handlePlaceOrder = async () => {
+  const handlePlaceOrder = async (method) => {
+    const resolvedMethod = method || paymentMethod;
     if (!user) {
       toast.error("Please log in to place your order", { icon: "🔐" });
       openAuthModal("login");
@@ -153,6 +147,11 @@ export default function Checkout() {
       return;
     }
 
+    if (!validateIndianPhone(address.phone)) {
+      toast.error("Please enter a valid 10-digit Indian phone number");
+      return;
+    }
+
     // Validate stock for all items before placing order
     for (const item of cart) {
       const stock = item.countInStock !== undefined ? Number(item.countInStock) : 0;
@@ -166,6 +165,7 @@ export default function Checkout() {
       }
     }
 
+    setPaymentMethod(resolvedMethod);
     setSubmitting(true);
     const orderPayload = {
       orderItems: cart.map((item) => ({
@@ -183,14 +183,14 @@ export default function Checkout() {
         city: address.city,
         pincode: address.pincode,
       },
-      paymentMethod: paymentMethod.toUpperCase(),
+      paymentMethod: resolvedMethod.toUpperCase(),
       couponCode: appliedCoupon ? appliedCoupon.code : "",
     };
 
-    if (paymentMethod === "cod") {
+    if (resolvedMethod === "cod") {
       // COD FLOW
       try {
-        const res = await fetch("/api/orders", {
+        const res = await fetch(`${API_URL}/api/orders`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -216,15 +216,8 @@ export default function Checkout() {
       }
     } else {
       // ONLINE PAYMENT FLOW (Razorpay)
-      const isScriptLoaded = await loadRazorpayScript();
-      if (!isScriptLoaded) {
-        toast.error("Razorpay SDK failed to load. Are you online?");
-        setSubmitting(false);
-        return;
-      }
-
       try {
-        const res = await fetch("/api/payments/create-order", {
+        const res = await fetch(`${API_URL}/api/payments/create-order`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -236,75 +229,37 @@ export default function Checkout() {
         const data = await res.json();
 
         if (!res.ok) {
-          toast.error(data.message || "Failed to initiate payment");
+          const errMsg = data.error ? `${data.message || "Failed to initiate payment"}: ${data.error}` : (data.message || "Failed to initiate payment");
+          toast.error(errMsg);
           setSubmitting(false);
           return;
         }
 
-        const options = {
+        await payWithRazorpay({
           key: data.key,
           amount: data.amount,
           currency: data.currency,
-          name: "Ecommerce Store",
-          description: "Order Payment",
-          order_id: data.razorpayOrderId,
-          handler: async function (response) {
-            // Payment success handler
-            try {
-              toast.loading("Verifying payment...", { id: "payment-verify" });
-              const verifyRes = await fetch("/api/payments/verify", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_signature: response.razorpay_signature,
-                  orderId: data.orderId,
-                }),
-              });
-
-              const verifyData = await verifyRes.json();
-
-              if (verifyRes.ok) {
-                toast.success("Payment verified and order placed! 🎉", { id: "payment-verify" });
-                clearCart();
-                navigate("/orders");
-              } else {
-                toast.error(verifyData.message || "Payment verification failed", { id: "payment-verify" });
-                // We keep them on checkout or send them to orders with 'Pending Payment' status
-                navigate("/orders");
-              }
-            } catch (err) {
-              console.error("Verification error:", err);
-              toast.error("Server error during verification", { id: "payment-verify" });
-            }
+          razorpayOrderId: data.razorpayOrderId,
+          orderId: data.orderId,
+          prefillName: address.name || user.name || "",
+          prefillPhone: address.phone || "",
+          prefillEmail: user.email || "",
+          token: token,
+          preferredMethod: "upi",
+          onSuccess: () => {
+            clearCart();
+            navigate(`/payment/success/${data.orderId}`);
+            setSubmitting(false);
           },
-          modal: {
-            ondismiss: function () {
-              setSubmitting(false);
-              toast.error("Payment cancelled. Order saved as Pending Payment.", { duration: 4000 });
-              navigate("/orders"); // Usually better to send them to orders where they can retry later
-            },
+          onDismiss: () => {
+            navigate(`/payment/failed/${data.orderId}`);
+            setSubmitting(false);
           },
-          prefill: {
-            name: address.name,
-            contact: address.phone,
-            email: user.email || "",
-          },
-          theme: {
-            color: "#2563EB", // blue-600
-          },
-        };
-
-        const rzp = new window.Razorpay(options);
-        rzp.on("payment.failed", function (response) {
-          toast.error(`Payment Failed: ${response.error.description}`);
-          setSubmitting(false);
+          onError: () => {
+            navigate(`/payment/failed/${data.orderId}`);
+            setSubmitting(false);
+          }
         });
-        rzp.open();
 
       } catch (err) {
         console.error("Online payment error:", err);
@@ -441,55 +396,12 @@ export default function Checkout() {
           </div>
         </div>
 
-        {/* Payment Methods */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6 rounded-xl shadow-md">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            💳 Payment Method
-          </h2>
-
-          <div className="space-y-3">
-            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
-              <input
-                type="radio"
-                name="payment"
-                checked={paymentMethod === "cod"}
-                onChange={() => setPaymentMethod("cod")}
-                className="w-4 h-4 text-blue-600"
-              />
-              <div>
-                <span className="font-bold text-gray-800 dark:text-white text-sm block">💵 Cash on Delivery (COD)</span>
-                <span className="text-xs text-gray-500">Pay cash upon receiving your delivery</span>
-              </div>
-            </label>
-
-            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
-              <input
-                type="radio"
-                name="payment"
-                checked={paymentMethod === "upi"}
-                onChange={() => setPaymentMethod("upi")}
-                className="w-4 h-4 text-blue-600"
-              />
-              <div>
-                <span className="font-bold text-gray-800 dark:text-white text-sm block">📱 Instant UPI / GPay / PhonePe</span>
-                <span className="text-xs text-gray-500">Fast payment via any UPI application</span>
-              </div>
-            </label>
-
-            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
-              <input
-                type="radio"
-                name="payment"
-                checked={paymentMethod === "card"}
-                onChange={() => setPaymentMethod("card")}
-                className="w-4 h-4 text-blue-600"
-              />
-              <div>
-                <span className="font-bold text-gray-800 dark:text-white text-sm block">💳 Credit / Debit Card</span>
-                <span className="text-xs text-gray-500">Visa, Mastercard, RuPay cards accepted</span>
-              </div>
-            </label>
-          </div>
+        {/* Payment info note */}
+        <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800 rounded-xl p-4">
+          <p className="text-xs text-blue-700 dark:text-blue-300 font-medium flex items-start gap-2">
+            <span className="text-base leading-none">🔒</span>
+            Choose how you'd like to pay below. Online payments are processed securely via Razorpay (Cards, Net Banking, Wallets &amp; UPI where available).
+          </p>
         </div>
       </div>
 
@@ -605,14 +517,52 @@ export default function Checkout() {
           </div>
         </div>
 
-        {/* Action Button */}
-        <button
-          onClick={handlePlaceOrder}
-          disabled={submitting}
-          className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white py-4 rounded-lg text-lg font-bold shadow-lg hover:shadow-xl transition transform active:scale-95 mt-4"
-        >
-          {submitting ? "PLACING ORDER..." : `CONFIRM ORDER (₹${total})`}
-        </button>
+        {/* Action Buttons */}
+        <div className="flex flex-col gap-3 mt-4">
+
+          {/* Pay via Razorpay */}
+          <button
+            id="btn-pay-razorpay"
+            onClick={() => handlePlaceOrder("razorpay")}
+            disabled={submitting}
+            className="w-full flex items-center justify-center gap-2 bg-[#2563EB] hover:bg-[#1d4ed8] disabled:bg-blue-300 text-white py-4 rounded-xl text-base font-bold shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
+          >
+            {submitting && paymentMethod === "razorpay" ? (
+              <>
+                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                Processing...
+              </>
+            ) : (
+              <>
+                <span className="text-lg">💳</span>
+                Pay Online via Razorpay
+                <span className="text-xs font-normal opacity-80 ml-1">(Cards · Net Banking · Wallets · UPI)</span>
+              </>
+            )}
+          </button>
+
+          {/* Cash on Delivery */}
+          <button
+            id="btn-pay-cod"
+            onClick={() => handlePlaceOrder("cod")}
+            disabled={submitting}
+            className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white py-4 rounded-xl text-base font-bold shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
+          >
+            {submitting && paymentMethod === "cod" ? (
+              <>
+                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                Placing Order...
+              </>
+            ) : (
+              <>
+                <span className="text-lg">💵</span>
+                Cash on Delivery (COD)
+                <span className="text-xs font-normal opacity-80 ml-1">(Pay when delivered)</span>
+              </>
+            )}
+          </button>
+
+        </div>
 
         <button
           onClick={() => navigate("/cart")}

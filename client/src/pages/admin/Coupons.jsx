@@ -2,6 +2,8 @@ import { useState, useEffect, useContext } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 export default function Coupons() {
   const { token } = useContext(AuthContext);
 
@@ -47,7 +49,7 @@ export default function Coupons() {
     setLoading(true);
     setError(false);
     try {
-      const res = await fetch(`/api/admin/coupons?page=${page}&limit=8&search=${search}&status=${statusFilter}`, {
+      const res = await fetch(`${API_URL}/api/admin/coupons?page=${page}&limit=8&search=${search}&status=${statusFilter}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -72,7 +74,7 @@ export default function Coupons() {
     setPerfLoading(true);
     setPerfError(false);
     try {
-      const res = await fetch("/api/admin/coupons/performance", {
+      const res = await fetch(`${API_URL}/api/admin/coupons/performance`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -142,8 +144,8 @@ export default function Coupons() {
     setFormLoading(true);
     try {
       const url = editingCoupon 
-        ? `/api/admin/coupons/${editingCoupon._id}` 
-        : "/api/admin/coupons";
+        ? `${API_URL}/api/admin/coupons/${editingCoupon._id}` 
+        : `${API_URL}/api/admin/coupons`;
       const method = editingCoupon ? "PUT" : "POST";
 
       const res = await fetch(url, {
@@ -178,7 +180,7 @@ export default function Coupons() {
   const handleToggleActive = async (coupon) => {
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/admin/coupons/${coupon._id}/toggle-active`, {
+      const res = await fetch(`${API_URL}/api/admin/coupons/${coupon._id}/toggle-active`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -201,7 +203,7 @@ export default function Coupons() {
     if (!couponToDelete) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/admin/coupons/${couponToDelete._id}`, {
+      const res = await fetch(`${API_URL}/api/admin/coupons/${couponToDelete._id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });

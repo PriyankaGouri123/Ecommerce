@@ -1,6 +1,6 @@
 const products = [
   // --- MEN'S COLLECTION (30 Unique Items) ---
-  { id: 201, category: "Men", name: "Classic Navy Blazer", price: 2499, countInStock: 12, image: "https://cdn.shopify.com/s/files/1/0639/1237/8602/files/Blue_Blazer_with_Blue_Shirt_480x480.jpg?v=1722424499" },
+  { id: 201, category: "Men", name: "Classic Navy Blazer", price: 0.5, countInStock: 12, image: "https://cdn.shopify.com/s/files/1/0639/1237/8602/files/Blue_Blazer_with_Blue_Shirt_480x480.jpg?v=1722424499" },
   { id: 202, category: "Men", name: "White Oxford Shirt", price: 1299, countInStock: 3, image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500" },
   { id: 203, category: "Men", name: "Black Slim Fit Jeans", price: 1799, countInStock: 0, image: "https://img.drz.lazcdn.com/static/pk/p/f74804ddb8d8428df4a62f68131dcfa9.jpg_720x720q80.jpg" },
   { id: 204, category: "Men", name: "Grey Marl Hoodie", price: 1499, countInStock: 5, image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500" },

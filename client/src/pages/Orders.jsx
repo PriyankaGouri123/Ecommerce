@@ -1,11 +1,16 @@
 import { useContext, useEffect, useState, useCallback } from "react";
 import { AuthContext } from "../context/AuthContext";
+import { StoreContext } from "../context/StoreContext";
 import { Link, useNavigate } from "react-router-dom";
 import ReviewModal from "../components/ReviewModal";
 import toast from "react-hot-toast";
+import { payWithRazorpay, formatPaymentMethod } from "../utils/payment";
+
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
 
 export default function Orders() {
   const { user, token, openAuthModal } = useContext(AuthContext);
+  const { clearCart } = useContext(StoreContext);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -20,12 +25,66 @@ export default function Orders() {
   const [reviewOrderId, setReviewOrderId] = useState(null);
   const [editingReview, setEditingReview] = useState(null); // null = create mode
 
+  const [retryingOrderId, setRetryingOrderId] = useState(null);
+
+  const handleRetryPayment = async (order) => {
+    if (retryingOrderId) return;
+    setRetryingOrderId(order._id || order.id);
+    try {
+      const res = await fetch(`${API_URL}/api/payments/retry-payment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orderId: order._id || order.id }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.message || "Failed to initiate payment retry");
+        return;
+      }
+
+      await payWithRazorpay({
+        key: data.key,
+        amount: data.amount,
+        currency: data.currency,
+        razorpayOrderId: data.razorpayOrderId,
+        orderId: data.orderId,
+        prefillName: order.shippingAddress?.name || user?.name || "",
+        prefillPhone: order.shippingAddress?.phone || user?.phone || "",
+        prefillEmail: user?.email || "",
+        token: token,
+        onSuccess: () => {
+          clearCart();
+          fetchOrders();
+          navigate(`/payment/success/${order._id || order.id}`);
+        },
+        onDismiss: () => {
+          fetchOrders();
+          navigate(`/payment/failed/${order._id || order.id}`);
+        },
+        onError: () => {
+          fetchOrders();
+          navigate(`/payment/failed/${order._id || order.id}`);
+        }
+      });
+    } catch (err) {
+      console.error("Retry payment error:", err);
+      toast.error("An error occurred during payment checkout.");
+    } finally {
+      setRetryingOrderId(null);
+    }
+  };
+
   const fetchOrders = useCallback(async () => {
     if (!user || !token) { setLoading(false); return; }
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch("/api/orders", {
+      const res = await fetch(`${API_URL}/api/orders`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -45,7 +104,7 @@ export default function Orders() {
   const fetchMyReviews = useCallback(async () => {
     if (!user || !token) return;
     try {
-      const res = await fetch("/api/reviews/my", {
+      const res = await fetch(`${API_URL}/api/reviews/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -189,12 +248,14 @@ export default function Orders() {
                   <div>
                     <span className="text-xs text-gray-500 uppercase tracking-wider block">Payment</span>
                     <span className="font-semibold text-xs text-gray-700 dark:text-gray-300">
-                      {order.paymentMethod || "COD"} 
+                      {formatPaymentMethod(order.paymentMethod)}
                       <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${
                         order.paymentStatus === "Paid" 
                           ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
                           : order.paymentStatus === "Pending"
                           ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400"
+                          : order.paymentStatus === "Failed"
+                          ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
                           : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
                       }`}>
                         {order.paymentStatus || "Pending"}
@@ -208,6 +269,15 @@ export default function Orders() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  {order.paymentMethod === "ONLINE" && (order.paymentStatus === "Pending" || order.paymentStatus === "Failed") && (
+                    <button
+                      onClick={() => handleRetryPayment(order)}
+                      disabled={retryingOrderId === (order._id || order.id)}
+                      className="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded hover:bg-blue-700 transition disabled:bg-blue-400"
+                    >
+                      {retryingOrderId === (order._id || order.id) ? "Opening..." : "💳 Pay Now"}
+                    </button>
+                  )}
                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
                     ● {order.status || "Order Placed"}
                   </span>
@@ -216,7 +286,7 @@ export default function Orders() {
                       onClick={async () => {
                         if (window.confirm("Are you sure you want to cancel this order?")) {
                           try {
-                            const res = await fetch(`/api/orders/${order._id || order.id}/cancel`, {
+                            const res = await fetch(`${API_URL}/api/orders/${order._id || order.id}/cancel`, {
                               method: "PUT",
                               headers: { Authorization: `Bearer ${token}` },
                             });
@@ -297,12 +367,16 @@ export default function Orders() {
                             </button>
                           )
                         ) : (
-                          <button
-                            onClick={() => navigate(`/orders/${order._id || order.id}/tracking`)}
-                            className="px-3 py-2 text-xs font-bold bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-lg hover:bg-blue-100 transition text-center"
-                          >
-                            Track Order
-                          </button>
+                          order.paymentStatus !== "Pending" && order.paymentStatus !== "Failed" ? (
+                            <button
+                              onClick={() => navigate(`/orders/${order._id || order.id}/tracking`)}
+                              className="px-3 py-2 text-xs font-bold bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-lg hover:bg-blue-100 transition text-center"
+                            >
+                              Track Order
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic text-center">Awaiting Payment</span>
+                          )
                         )}
                       </div>
                     </div>

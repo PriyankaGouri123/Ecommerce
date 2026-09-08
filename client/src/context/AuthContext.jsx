@@ -3,7 +3,8 @@ import toast from "react-hot-toast";
 
 export const AuthContext = createContext();
 
-const API_BASE_URL = "/api/auth";
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+const API_BASE_URL = `${API_URL}/api/auth`;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -138,6 +139,38 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ─────────── RESET PASSWORD (Forgot Password) ───────────
+  const resetPassword = async (identifier, otp, newPassword) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier, otp, newPassword }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success("Password reset! You can now log in.", {
+          icon: "🔐",
+          style: { borderRadius: "10px", background: "#1e293b", color: "#fff" },
+        });
+        return { success: true };
+      } else {
+        toast.error(data.message || "Reset failed. Please try again.", {
+          style: { borderRadius: "10px", background: "#1e293b", color: "#fff" },
+        });
+        return { success: false, message: data.message };
+      }
+    } catch {
+      toast.error("Cannot connect to server.", {
+        style: { borderRadius: "10px", background: "#7f1d1d", color: "#fff" },
+        duration: 5000,
+      });
+      return { success: false, message: "Server unavailable" };
+    }
+  };
+
   // ─────────── REGISTER ───────────
   const register = async (name, identifier, password) => {
     try {
@@ -232,6 +265,7 @@ export const AuthProvider = ({ children }) => {
         loginWithPassword,
         sendOtp,
         verifyOtp,
+        resetPassword,
         register,
         updateProfile,
         logout,

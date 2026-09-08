@@ -6,6 +6,8 @@ import { AuthContext } from "../context/AuthContext";
 import toast from "react-hot-toast";
 import ProductCard from "../components/ProductCard";
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 export default function ProductDetails() {
   // ----- ROUTE & CONTEXT HOOKS -----
   const { id } = useParams();
@@ -39,7 +41,7 @@ export default function ProductDetails() {
     const fetchReviews = async () => {
       if (!targetProductId) return;
       try {
-        const res = await fetch(`/api/reviews/product/${targetProductId}`);
+        const res = await fetch(`${API_URL}/api/reviews/product/${targetProductId}`);
         if (res.ok) {
           const data = await res.json();
           setReviews(data);

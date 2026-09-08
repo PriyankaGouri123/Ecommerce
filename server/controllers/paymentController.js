@@ -1,16 +1,229 @@
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import Cart from "../models/Cart.js";
 import Product from "../models/Product.js";
 import Coupon from "../models/Coupon.js";
+import User from "../models/User.js";
 import { sendOrderPlacedEmail } from "../config/emailService.js";
 
-// Initialize Razorpay instance safely (falling back to dummy keys if env is not configured to avoid crashing, but warning the user)
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || "rzp_test_dummykey12345",
-  key_secret: process.env.RAZORPAY_KEY_SECRET || "dummysecret1234567890",
-});
+/**
+ * Universal product lookup helper supporting ObjectId, 24-char hex string, or numeric id.
+ */
+export const findProductByIdOrCode = async (productId) => {
+  if (!productId) return null;
+  const conditions = [];
+
+  if (mongoose.Types.ObjectId.isValid(productId)) {
+    conditions.push({ _id: productId });
+  }
+  const numericId = Number(productId);
+  if (!isNaN(numericId)) {
+    conditions.push({ id: numericId });
+  }
+
+  if (conditions.length === 0) return null;
+  return await Product.findOne({ $or: conditions });
+};
+
+/**
+ * Universal stock decrement helper.
+ */
+export const decrementProductStock = async (productId, quantity) => {
+  const conditions = [];
+  if (mongoose.Types.ObjectId.isValid(productId)) {
+    conditions.push({ _id: productId });
+  }
+  const numericId = Number(productId);
+  if (!isNaN(numericId)) {
+    conditions.push({ id: numericId });
+  }
+  if (conditions.length === 0) return;
+  return await Product.updateOne({ $or: conditions }, { $inc: { countInStock: -quantity } });
+};
+
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Cached Razorpay instance.
+let _razorpayInstance = null;
+
+function getRazorpay() {
+  // Always check latest env if keys are missing
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    dotenv.config({ path: path.join(__dirname, "../.env"), override: true });
+  }
+
+  const key_id = (process.env.RAZORPAY_KEY_ID || "").trim();
+  const key_secret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+
+  if (!key_id || !key_secret) {
+    console.error(
+      "❌ RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is missing from environment variables.",
+      { key_id: key_id ? "set" : "MISSING", key_secret: key_secret ? "set" : "MISSING" }
+    );
+    throw new Error("Razorpay credentials are not configured. Check your .env file.");
+  }
+
+  if (!_razorpayInstance || _razorpayInstance.key_id !== key_id || _razorpayInstance.key_secret !== key_secret) {
+    _razorpayInstance = new Razorpay({ key_id, key_secret });
+    console.log("✅ Razorpay instance initialized successfully with key:", key_id);
+  }
+  return _razorpayInstance;
+}
+
+/**
+ * Fulfills an order idempotently.
+ * Shared by both direct verify API and Razorpay webhook.
+ */
+export const fulfillOrder = async (razorpayOrderId, razorpayPaymentId, orderId = null, razorpayMethod = null) => {
+  let order = null;
+  if (razorpayOrderId) {
+    order = await Order.findOne({ razorpayOrderId });
+  }
+  if (!order && orderId) {
+    order = await Order.findById(orderId);
+  }
+  if (!order) {
+    console.warn(`⚠️ Order not found for fulfillment: razorpayOrderId=${razorpayOrderId}, orderId=${orderId}`);
+    return null;
+  }
+
+  // Idempotency check 1: If already paid, do nothing
+  if (order.paymentStatus === "Paid") {
+    console.log(`ℹ️ Order ${order._id} is already paid. Skipping double fulfillment.`);
+    return order;
+  }
+
+  // 1. Recheck Stock availability before locking
+  for (const item of order.orderItems) {
+    const productDoc = await findProductByIdOrCode(item.product || item.id);
+    if (!productDoc) throw new Error(`Product "${item.name}" not found.`);
+    if (productDoc.countInStock < item.quantity) {
+      throw new Error(`Stock for "${item.name}" ran out. Cannot fulfill.`);
+    }
+  }
+
+  // 2. Atomic Lock Transition: Only transition if paymentStatus is not already "Paid"
+  const lockedOrder = await Order.findOneAndUpdate(
+    {
+      _id: order._id,
+      paymentStatus: { $ne: "Paid" }
+    },
+    {
+      $set: {
+        paymentStatus: "Paid",
+        status: "Order Placed",
+        razorpayPaymentId: razorpayPaymentId || order.razorpayPaymentId || "",
+        ...(razorpayMethod ? { paymentMethod: razorpayMethod } : {}),
+        paidAt: new Date()
+      },
+      $push: {
+        trackingHistory: {
+          status: "Order Placed",
+          date: new Date(),
+          location: order.shippingAddress?.city || "Hub",
+          description: "Payment verified successfully. Order confirmed."
+        }
+      }
+    },
+    { returnDocument: 'after' }
+  );
+
+  if (!lockedOrder) {
+    console.log(`ℹ️ Order ${order._id} was already fulfilled by concurrent request. Skipping.`);
+    return await Order.findById(order._id);
+  }
+
+  // 3. Deduct Inventory & Increment Coupon (Guaranteed to run only once due to atomic lock)
+  for (const item of lockedOrder.orderItems) {
+    await decrementProductStock(item.product || item.id, item.quantity);
+  }
+
+  if (lockedOrder.couponCode) {
+    await Coupon.updateOne(
+      { code: lockedOrder.couponCode.toUpperCase() },
+      { $inc: { usedCount: 1 } }
+    );
+  }
+
+  // 4. Send Confirmation Email (non-blocking)
+  const userDoc = await User.findById(lockedOrder.user);
+  if (userDoc && userDoc.email) {
+    try {
+      await sendOrderPlacedEmail(userDoc.email, lockedOrder);
+    } catch (err) {
+      console.error("Email notification failed:", err);
+    }
+  }
+
+  // 5. Clear Cart (non-blocking)
+  try {
+    await Cart.findOneAndUpdate({ user: lockedOrder.user }, { items: [] });
+  } catch (err) {
+    console.error("Cart clear failed:", err);
+  }
+
+  return lockedOrder;
+};
+
+/**
+ * Marks payment as failed if still pending.
+ */
+export const failOrder = async (razorpayOrderId, orderId = null) => {
+  let order = null;
+  if (razorpayOrderId) {
+    order = await Order.findOne({ razorpayOrderId });
+  }
+  if (!order && orderId) {
+    order = await Order.findById(orderId);
+  }
+  if (!order) {
+    console.warn(`⚠️ Order not found for failOrder: razorpayOrderId=${razorpayOrderId}, orderId=${orderId}`);
+    return null;
+  }
+
+  if (order.paymentStatus === "Pending") {
+    order.paymentStatus = "Failed";
+    order.status = "Payment Failed";
+    order.trackingHistory.push({
+      status: "Payment Failed",
+      date: new Date(),
+      location: order.shippingAddress?.city || "Hub",
+      description: "Payment was declined, failed, or cancelled."
+    });
+    await order.save();
+    console.log(`ℹ️ Order ${order._id} marked as Payment Failed.`);
+  }
+  return order;
+};
+
+// @desc    Mark payment as failed if cancelled or declined on client
+// @route   POST /api/payments/mark-failed
+// @access  Private
+export const markPaymentFailed = async (req, res) => {
+  try {
+    const { orderId, razorpayOrderId } = req.body;
+    if (!orderId && !razorpayOrderId) {
+      return res.status(400).json({ message: "Order ID or Razorpay Order ID is required" });
+    }
+
+    const order = await failOrder(razorpayOrderId, orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    res.status(200).json({ message: "Order payment marked as failed", orderId: order._id });
+  } catch (error) {
+    console.error("❌ Error marking payment as failed:", error);
+    res.status(500).json({ message: "Failed to mark payment as failed", error: error.message });
+  }
+};
 
 // @desc    Create Razorpay Order
 // @route   POST /api/payments/create-order
@@ -26,23 +239,32 @@ export const createRazorpayOrder = async (req, res) => {
       return res.status(400).json({ message: "Invalid shipping address" });
     }
 
-    // 1. Validate Product Stock
+    // 1. Validate Product Stock and get correct database prices (Secure Server-Side Flow)
+    const recalculatedOrderItems = [];
+    let subtotal = 0;
+
     for (const item of orderItems) {
-      const productId = item.product || item.id;
-      const productDoc = await Product.findOne({
-        $or: [
-          { _id: typeof productId === "string" && productId.length === 24 ? productId : null },
-          { id: typeof productId === "number" ? productId : (isNaN(Number(productId)) ? null : Number(productId)) }
-        ].filter(Boolean)
-      });
+      const productDoc = await findProductByIdOrCode(item.product || item.id);
       if (!productDoc) return res.status(404).json({ message: `Product "${item.name}" not found.` });
       if (productDoc.countInStock < item.quantity) {
         return res.status(400).json({ message: `Cannot place order. Requested quantity (${item.quantity}) for "${item.name}" exceeds available stock (${productDoc.countInStock}).` });
       }
+
+      // Lock DB price to prevent client side modification
+      const actualPrice = productDoc.price;
+      subtotal += actualPrice * item.quantity;
+
+      recalculatedOrderItems.push({
+        product: productDoc._id,
+        id: String(productDoc.id),
+        name: productDoc.name,
+        quantity: item.quantity,
+        image: productDoc.image || item.image,
+        price: actualPrice
+      });
     }
 
     // 2. Calculate Totals
-    const subtotal = orderItems.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
     const delivery = subtotal > 999 ? 0 : 99;
     let discountAmount = 0;
     let appliedCoupon = null;
@@ -74,13 +296,21 @@ export const createRazorpayOrder = async (req, res) => {
     const finalTotal = Math.max(0, subtotal - discountAmount + delivery);
 
     // 3. Create Razorpay Order
+    const finalAmountInPaise = Math.round(finalTotal * 100);
+    if (finalAmountInPaise < 100) {
+      return res.status(400).json({ message: "Order amount must be at least ₹1.00 for online payments." });
+    }
+
+    const razorpay = getRazorpay();
     const options = {
-      amount: finalTotal * 100, // Razorpay works in paise
+      amount: finalAmountInPaise, // Razorpay requires integer amount in paise
       currency: "INR",
       receipt: `receipt_${Date.now()}_${req.user._id.toString().substring(0, 5)}`
     };
 
+    console.log("📦 Creating Razorpay order with options:", { amount: options.amount, currency: options.currency, receipt: options.receipt });
     const razorpayOrder = await razorpay.orders.create(options);
+    console.log("✅ Razorpay order created:", razorpayOrder.id);
 
     // 4. Create MongoDB Order in Pending Status
     const initialTracking = [{
@@ -92,7 +322,7 @@ export const createRazorpayOrder = async (req, res) => {
 
     const newOrder = new Order({
       user: req.user._id,
-      orderItems,
+      orderItems: recalculatedOrderItems,
       shippingAddress,
       paymentMethod: paymentMethod || "ONLINE",
       paymentStatus: "Pending",
@@ -115,8 +345,22 @@ export const createRazorpayOrder = async (req, res) => {
       key: process.env.RAZORPAY_KEY_ID // Safe to send public key ID
     });
   } catch (error) {
-    console.error("Error creating Razorpay order:", error);
-    res.status(500).json({ message: "Failed to initiate payment", error: error.message });
+    console.error("❌ Error creating Razorpay order:", {
+      message: error.message,
+      statusCode: error.statusCode,
+      error: error.error,
+      stack: error.stack
+    });
+
+    if (error.message?.includes("credentials are not configured")) {
+      return res.status(500).json({ message: "Payment gateway is not configured. Please contact support." });
+    }
+
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      message: "Failed to initiate payment",
+      error: error.error?.description || error.message
+    });
   }
 };
 
@@ -132,7 +376,12 @@ export const verifyPayment = async (req, res) => {
     }
 
     // 1. Verify HMAC Signature
-    const secret = process.env.RAZORPAY_KEY_SECRET || "dummysecret1234567890";
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    if (!secret) {
+      console.error("❌ RAZORPAY_KEY_SECRET is missing — cannot verify payment signature.");
+      return res.status(500).json({ message: "Payment gateway is not configured. Please contact support." });
+    }
+
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac("sha256", secret)
@@ -143,98 +392,160 @@ export const verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "Payment signature verification failed. Possible tampering." });
     }
 
-    // 2. Find MongoDB Order
-    const order = await Order.findById(orderId);
+    // 2. Fulfill Order Idempotently
+    // Note: razorpay.payments.fetch() is unreliable in test mode (mock payment IDs return 404).
+    // The webhook handler already captures the real method from the event payload.
+    // For the verify path, we keep the order's existing paymentMethod (stored as "ONLINE").
+    const order = await fulfillOrder(razorpay_order_id, razorpay_payment_id, orderId, null);
     if (!order) {
       return res.status(404).json({ message: "Order not found." });
     }
 
-    if (order.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Access denied." });
-    }
-
-    if (order.paymentStatus === "Paid" || order.status === "Order Placed") {
-      return res.status(400).json({ message: "Payment already verified for this order." });
-    }
-
-    if (order.razorpayOrderId !== razorpay_order_id) {
-      return res.status(400).json({ message: "Order ID mismatch." });
-    }
-
-    // 3. Re-check Inventory & Coupon
-    // Inventory
-    for (const item of order.orderItems) {
-      const productId = item.product || item.id;
-      const productDoc = await Product.findOne({
-        $or: [
-          { _id: typeof productId === "string" && productId.length === 24 ? productId : null },
-          { id: typeof productId === "number" ? productId : (isNaN(Number(productId)) ? null : Number(productId)) }
-        ].filter(Boolean)
-      });
-      if (!productDoc) return res.status(404).json({ message: `Product "${item.name}" not found.` });
-      if (productDoc.countInStock < item.quantity) {
-        // Here we ideally refund the customer because they already paid via Razorpay, but since this is an assignment:
-        return res.status(400).json({ message: `Stock for "${item.name}" ran out during payment. Please contact support for refund.` });
-      }
-    }
-
-    // Coupon
-    let appliedCoupon = null;
-    if (order.couponCode) {
-      appliedCoupon = await Coupon.findOne({ code: order.couponCode.toUpperCase() });
-      if (!appliedCoupon || !appliedCoupon.isActive || new Date() > new Date(appliedCoupon.expiry) || appliedCoupon.usedCount >= appliedCoupon.usageLimit) {
-         // Same, ideally refund. But we just proceed or block.
-         return res.status(400).json({ message: `Coupon expired or limit reached during payment. Contact support.` });
-      }
-    }
-
-    // 4. Deduct Inventory & Increment Coupon
-    for (const item of order.orderItems) {
-      const productId = item.product || item.id;
-      await Product.updateOne(
-        {
-          $or: [
-            { _id: typeof productId === "string" && productId.length === 24 ? productId : null },
-            { id: typeof productId === "number" ? productId : (isNaN(Number(productId)) ? null : Number(productId)) }
-          ].filter(Boolean)
-        },
-        { $inc: { countInStock: -item.quantity } }
-      );
-    }
-
-    if (appliedCoupon) {
-      await Coupon.updateOne({ _id: appliedCoupon._id }, { $inc: { usedCount: 1 } });
-    }
-
-    // 5. Update Order Status
-    order.paymentStatus = "Paid";
-    order.status = "Order Placed";
-    order.razorpayPaymentId = razorpay_payment_id;
-    order.paidAt = new Date();
-    order.trackingHistory.push({
-      status: "Order Placed",
-      date: new Date(),
-      location: order.shippingAddress?.city || "Hub",
-      description: "Payment verified successfully. Order confirmed."
-    });
-
-    await order.save();
-
-    // 6. Send Email (non-blocking)
-    if (req.user.email) {
-      try {
-        await sendOrderPlacedEmail(req.user.email, order);
-      } catch (err) {
-        console.error("Email failed:", err);
-      }
-    }
-
-    // 7. Clear Cart
-    await Cart.findOneAndUpdate({ user: req.user._id }, { items: [] });
-
     res.status(200).json({ message: "Payment verified successfully", orderId: order._id });
   } catch (error) {
-    console.error("Error verifying payment:", error);
+    console.error("❌ Error verifying payment:", {
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ message: "Payment verification failed", error: error.message });
   }
 };
+
+// @desc    Retry Razorpay Payment for existing order
+// @route   POST /api/payments/retry-payment
+// @access  Private
+export const retryRazorpayPayment = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    if (!orderId) {
+      return res.status(400).json({ message: "Order ID is required" });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    if (order.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    if (order.paymentStatus === "Paid") {
+      return res.status(400).json({ message: "Order is already paid" });
+    }
+
+    // 1. Verify Stock is still available
+    for (const item of order.orderItems) {
+      const productDoc = await findProductByIdOrCode(item.product || item.id);
+      if (!productDoc) return res.status(404).json({ message: `Product "${item.name}" not found.` });
+      if (productDoc.countInStock < item.quantity) {
+        return res.status(400).json({ message: `Cannot place order. Requested quantity (${item.quantity}) for "${item.name}" exceeds available stock (${productDoc.countInStock}).` });
+      }
+    }
+
+    // 2. Create a new Razorpay Order for the same amount in paise
+    const razorpay = getRazorpay();
+    const options = {
+      amount: Math.round(order.totalAmount * 100), // Razorpay works in paise
+      currency: "INR",
+      receipt: `rcpt_rt_${Date.now().toString().slice(-8)}_${req.user._id.toString().substring(0, 4)}`,
+      notes: {
+        orderId: order._id.toString(),
+        userId: req.user._id.toString()
+      }
+    };
+
+    console.log("📦 Creating retry Razorpay order with options:", { amount: options.amount, currency: options.currency, receipt: options.receipt });
+    const razorpayOrder = await razorpay.orders.create(options);
+    console.log("✅ Retry Razorpay order created:", razorpayOrder.id);
+
+    // Update order with the new Razorpay Order ID (keeps single customer order)
+    order.razorpayOrderId = razorpayOrder.id;
+    order.paymentStatus = "Pending";
+    order.status = "Payment Pending";
+    await order.save();
+
+    res.status(200).json({
+      orderId: order._id,
+      razorpayOrderId: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      key: process.env.RAZORPAY_KEY_ID
+    });
+  } catch (error) {
+    console.error("❌ Error retrying Razorpay payment:", error);
+    res.status(500).json({ message: "Failed to initiate payment retry", error: error.message });
+  }
+};
+
+// @desc    Handle Razorpay Webhook Event
+// @route   POST /api/payments/webhook
+// @access  Public (Signature Checked)
+export const handleWebhook = async (req, res) => {
+  try {
+    const signature = req.headers["x-razorpay-signature"];
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+      console.error("❌ RAZORPAY_WEBHOOK_SECRET is missing.");
+      return res.status(500).json({ message: "Webhook secret not configured" });
+    }
+
+    if (!signature) {
+      console.warn("⚠️ Webhook missing x-razorpay-signature header");
+      return res.status(400).json({ message: "Missing x-razorpay-signature header" });
+    }
+
+    const rawPayload = req.rawBody ? req.rawBody.toString("utf8") : (typeof req.body === "string" ? req.body : JSON.stringify(req.body));
+
+    if (!rawPayload) {
+      console.warn("⚠️ Webhook raw body missing");
+      return res.status(400).json({ message: "Missing raw request body" });
+    }
+
+    const isValid = Razorpay.validateWebhookSignature(
+      rawPayload,
+      signature,
+      webhookSecret
+    );
+
+    if (!isValid) {
+      console.warn("⚠️ Invalid webhook signature");
+      return res.status(400).json({ message: "Invalid signature" });
+    }
+
+    const event = typeof req.body === "object" ? req.body : JSON.parse(rawPayload);
+    console.log(`✉️ Received Webhook Event: ${event.event}`);
+
+    if (event.event === "order.paid") {
+      const razorpayOrderId = event.payload?.order?.entity?.id;
+      const razorpayPaymentId = event.payload?.payment?.entity?.id || "";
+      const webhookMethod = event.payload?.payment?.entity?.method;
+      const methodMap = { card: "Razorpay (Card)", wallet: "Razorpay (Wallet)", upi: "Razorpay (UPI)", netbanking: "Razorpay (Net Banking)", emi: "Razorpay (EMI)", paylater: "Razorpay (Pay Later)" };
+      const razorpayMethod = webhookMethod ? (methodMap[webhookMethod] || `Razorpay (${webhookMethod})`) : null;
+      if (razorpayOrderId) {
+        await fulfillOrder(razorpayOrderId, razorpayPaymentId, null, razorpayMethod);
+      }
+    } else if (event.event === "payment.captured") {
+      const razorpayOrderId = event.payload?.payment?.entity?.order_id;
+      const razorpayPaymentId = event.payload?.payment?.entity?.id || "";
+      const webhookMethod = event.payload?.payment?.entity?.method;
+      const methodMap = { card: "Razorpay (Card)", wallet: "Razorpay (Wallet)", upi: "Razorpay (UPI)", netbanking: "Razorpay (Net Banking)", emi: "Razorpay (EMI)", paylater: "Razorpay (Pay Later)" };
+      const razorpayMethod = webhookMethod ? (methodMap[webhookMethod] || `Razorpay (${webhookMethod})`) : null;
+      if (razorpayOrderId) {
+        await fulfillOrder(razorpayOrderId, razorpayPaymentId, null, razorpayMethod);
+      }
+    } else if (event.event === "payment.failed") {
+      const razorpayOrderId = event.payload?.payment?.entity?.order_id;
+      if (razorpayOrderId) {
+        await failOrder(razorpayOrderId);
+      }
+    }
+
+    res.status(200).json({ status: "ok" });
+  } catch (error) {
+    console.error("❌ Webhook error:", error);
+    res.status(500).json({ message: "Webhook handler failed", error: error.message });
+  }
+};
+

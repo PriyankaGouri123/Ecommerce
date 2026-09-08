@@ -2,6 +2,8 @@ import { useState, useContext, useRef, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 const MAX_PHOTOS = 5;
 const RATING_LABELS = ["", "Poor", "Fair", "Good", "Very Good", "Excellent"];
 
@@ -87,7 +89,7 @@ export default function ReviewModal({
       let res;
       if (isEditMode) {
         // PUT to update
-        res = await fetch(`/api/reviews/${existingReview._id}`, {
+        res = await fetch(`${API_URL}/api/reviews/${existingReview._id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -97,7 +99,7 @@ export default function ReviewModal({
         });
       } else {
         // POST to create
-        res = await fetch("/api/reviews", {
+        res = await fetch(`${API_URL}/api/reviews`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
