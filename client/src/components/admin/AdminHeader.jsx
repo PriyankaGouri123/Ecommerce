@@ -2,7 +2,7 @@ import { useContext, useState, useEffect, useRef } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "";
 
 export default function AdminHeader() {
   const { user, token, logout } = useContext(AuthContext);

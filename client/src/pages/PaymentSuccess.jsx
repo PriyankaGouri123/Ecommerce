@@ -4,7 +4,7 @@ import { AuthContext } from "../context/AuthContext";
 import { StoreContext } from "../context/StoreContext";
 import { formatPaymentMethod } from "../utils/payment";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "";
 
 export default function PaymentSuccess() {
   const { orderId } = useParams();

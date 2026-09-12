@@ -1,6 +1,6 @@
 import toast from "react-hot-toast";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "";
 
 /**
  * Normalizes any stored paymentMethod value to a human-readable label.

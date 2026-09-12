@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "";
 
 export default function Tracking() {
   const { orderId } = useParams();

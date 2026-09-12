@@ -31,18 +31,30 @@ console.log("RAZORPAY_KEY_SECRET:", process.env.RAZORPAY_KEY_SECRET ? "Loaded âœ
 const app = express();
 
 // Middleware
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  "http://localhost:5173",
-  "http://localhost:5000",
-  "http://localhost:3000"
-].filter(Boolean);
+const getFrontendOrigins = () => {
+  const envOrigins = (process.env.FRONTEND_URL || "")
+    .split(",")
+    .map(url => url.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+
+  const defaultDevOrigins = [
+    "http://localhost:5173",
+    "http://localhost:5000",
+    "http://localhost:3000"
+  ];
+
+  return Array.from(new Set([...envOrigins, ...defaultDevOrigins]));
+};
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, curl, postman)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || allowedOrigins.includes("*") || !process.env.FRONTEND_URL) {
+
+    const allowed = getFrontendOrigins();
+    const cleanOrigin = origin.replace(/\/+$/, "");
+
+    if (allowed.includes(cleanOrigin) || allowed.includes("*") || !process.env.FRONTEND_URL) {
       return callback(null, true);
     }
     return callback(new Error("Not allowed by CORS"), false);
@@ -92,7 +104,7 @@ connectDB();
 const PORT = process.env.PORT || 5000;
 
 const startServer = (port) => {
-  const server = app.listen(port, () => {
+  const server = app.listen(port, "0.0.0.0", () => {
     console.log(`âœ… Server running on port ${port}`);
   });
   server.on('error', (err) => {

@@ -2,7 +2,7 @@ import { useState, useContext, useRef, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import toast from "react-hot-toast";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "";
 
 const MAX_PHOTOS = 5;
 const RATING_LABELS = ["", "Poor", "Fair", "Good", "Very Good", "Excellent"];

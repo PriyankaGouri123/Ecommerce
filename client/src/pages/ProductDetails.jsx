@@ -6,7 +6,7 @@ import { AuthContext } from "../context/AuthContext";
 import toast from "react-hot-toast";
 import ProductCard from "../components/ProductCard";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "";
 
 export default function ProductDetails() {
   // ----- ROUTE & CONTEXT HOOKS -----

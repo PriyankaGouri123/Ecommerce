@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 
 export const AuthContext = createContext();
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "";
 const API_BASE_URL = `${API_URL}/api/auth`;
 
 export const AuthProvider = ({ children }) => {

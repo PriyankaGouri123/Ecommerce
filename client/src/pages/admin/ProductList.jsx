@@ -3,7 +3,7 @@ import { AuthContext } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 import ProductModal from "../../components/admin/ProductModal";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "";
 
 export default function ProductList() {
   const [products, setProducts] = useState([]);

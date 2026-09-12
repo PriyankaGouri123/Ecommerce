@@ -6,7 +6,7 @@ import ReviewModal from "../components/ReviewModal";
 import toast from "react-hot-toast";
 import { payWithRazorpay, formatPaymentMethod } from "../utils/payment";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "";
 
 export default function Orders() {
   const { user, token, openAuthModal } = useContext(AuthContext);
