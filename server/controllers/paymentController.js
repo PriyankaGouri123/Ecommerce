@@ -59,8 +59,8 @@ function getRazorpay() {
     dotenv.config({ path: path.join(__dirname, "../.env"), override: true });
   }
 
-  const key_id = (process.env.RAZORPAY_KEY_ID || "").trim();
-  const key_secret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+  const key_id = (process.env.RAZORPAY_KEY_ID || "").trim().replace(/^["']|["']$/g, "");
+  const key_secret = (process.env.RAZORPAY_KEY_SECRET || "").trim().replace(/^["']|["']$/g, "");
 
   if (!key_id || !key_secret) {
     console.error(
@@ -72,7 +72,7 @@ function getRazorpay() {
 
   if (!_razorpayInstance || _razorpayInstance.key_id !== key_id || _razorpayInstance.key_secret !== key_secret) {
     _razorpayInstance = new Razorpay({ key_id, key_secret });
-    console.log("✅ Razorpay instance initialized successfully with key:", key_id);
+    console.log("✅ Razorpay instance initialized successfully with key prefix:", key_id.substring(0, 8), "length:", key_id.length);
   }
   return _razorpayInstance;
 }
@@ -342,13 +342,23 @@ export const createRazorpayOrder = async (req, res) => {
       razorpayOrderId: razorpayOrder.id,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
-      key: process.env.RAZORPAY_KEY_ID // Safe to send public key ID
+      key: (process.env.RAZORPAY_KEY_ID || "").trim().replace(/^["']|["']$/g, "")
     });
   } catch (error) {
+    const errorDetail =
+      error.error?.description ||
+      (typeof error.error === "string" ? error.error : null) ||
+      error.error?.code ||
+      error.description ||
+      error.message ||
+      (typeof error === "string" ? error : (error ? JSON.stringify(error) : "Unknown payment error"));
+
     console.error("❌ Error creating Razorpay order:", {
       message: error.message,
       statusCode: error.statusCode,
-      error: error.error,
+      name: error.name,
+      code: error.code || error.error?.code,
+      description: errorDetail,
       stack: error.stack
     });
 
@@ -356,10 +366,11 @@ export const createRazorpayOrder = async (req, res) => {
       return res.status(500).json({ message: "Payment gateway is not configured. Please contact support." });
     }
 
-    const statusCode = error.statusCode || 500;
+    const statusCode = error.statusCode || (error.name === "ValidationError" ? 400 : 500);
     res.status(statusCode).json({
       message: "Failed to initiate payment",
-      error: error.error?.description || error.message
+      error: errorDetail,
+      code: error.error?.code || error.code || error.name || null
     });
   }
 };

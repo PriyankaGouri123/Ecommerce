@@ -11,13 +11,27 @@ const isValidObjectId = (val) =>
 // @access  Private
 export const getWishlist = async (req, res) => {
   try {
-    let wishlist = await Wishlist.findOne({ user: req.user._id });
+    let wishlist = await Wishlist.findOne({ user: req.user._id }).populate("products.product");
 
     if (!wishlist) {
       wishlist = await Wishlist.create({ user: req.user._id, products: [] });
     }
 
-    res.json(wishlist.products || []);
+    // Merge live product data (especially countInStock) with wishlist items
+    const enrichedProducts = (wishlist.products || []).map((item) => {
+      const obj = item.toObject();
+      if (item.product && typeof item.product === "object") {
+        obj.countInStock = item.product.countInStock;
+        obj.price = item.product.price;
+        obj.name = item.product.name;
+        obj.image = item.product.image;
+        obj.category = item.product.category;
+        obj.averageRating = item.product.averageRating;
+      }
+      return obj;
+    });
+
+    res.json(enrichedProducts);
   } catch (error) {
     console.error("Error fetching wishlist:", error);
     res.status(500).json({ message: "Failed to fetch wishlist", error: error.message });
